@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -20,7 +21,7 @@ public struct Cell
 public class SimpleMaze : MonoBehaviour
 {
     //singleton
-    public static SimpleMaze Instance { get; private set; }
+    public static SimpleMaze SimpleInstance { get; private set; }
 
     /*  constants    */
     private const int WIDTH = 10, HEIGHT = 10;
@@ -47,8 +48,8 @@ public class SimpleMaze : MonoBehaviour
 
     private void Awake()
     {
-        if (Instance == null)
-            Instance = this;
+        if (SimpleInstance == null)
+            SimpleInstance = this;
         else
             Destroy(this);
     }
@@ -60,25 +61,32 @@ public class SimpleMaze : MonoBehaviour
 
     void Update()
     {
-        if (Input.GetKeyDown(KeyCode.Space) || Input.GetMouseButtonDown(1))
-        {
-            GenerateGrid((int)sizeSlider.value, (int)sizeSlider.value);
-        }
-
         Vector3 mouse = Camera.main.ScreenToWorldPoint(Input.mousePosition);
         mouseCircle.transform.position = new Vector3(mouse.x, mouse.y, 0);
 
-        Vector3 pos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-        Camera.main.orthographicSize = ((int)sizeSlider.value / 2) + 2;
-        verticalOffset = Camera.main.orthographicSize;
-        horizontalOffset = verticalOffset * (Screen.width / Screen.height);
+        //input
+        if (Input.GetKeyDown(KeyCode.Space) || Input.GetMouseButtonDown(1))
+        {
+            //grid offset based on camera size
+            Camera.main.orthographicSize = ((int)sizeSlider.value / 2) + 2;
+            verticalOffset = (int)Camera.main.orthographicSize;
+            horizontalOffset = verticalOffset * (Screen.width / Screen.height);
+            GenerateGrid((int)sizeSlider.value, (int)sizeSlider.value);
+        }
+        if (Input.GetMouseButton(0))
+        {
+            Vector3 pos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+            Camera.main.orthographicSize = ((int)sizeSlider.value / 2) + 2;
+            verticalOffset = Camera.main.orthographicSize;
+            horizontalOffset = verticalOffset * (Screen.width / Screen.height);
 
-        int x = (int)pos.x + (int)(horizontalOffset);
-        int y = (int)pos.y + (int)(verticalOffset);
+            int x = (int)pos.x + (int)(horizontalOffset);
+            int y = (int)pos.y + (int)(verticalOffset);
 
-        //mouse click is in board bounds
-        if (x >= 0 && x < (int)(sizeSlider.value) && y >= 0 && y < (int)(sizeSlider.value))
-            DrawCell(x, y);
+            //mouse click is in board bounds
+            if (x >= 0 && x < (int)(sizeSlider.value) && y >= 0 && y < (int)(sizeSlider.value))
+                DrawCell(x, y);
+        }
     }
 
     void DrawCell(int x, int y)
@@ -101,44 +109,49 @@ public class SimpleMaze : MonoBehaviour
     #region INIT
     public void Init()
     {
-        //setup first cell
+        //setup locations
         start = new Vector2(UnityEngine.Random.Range(0, (int)sizeSlider.value), 0);
         foundEnd = false;
-
-        //represents the direction of each cell and its array pos in this order: right, up, down, left
-        neighbors = new Vector3[]{ new Vector3(1, 0, 0), new Vector3(0, 1, 1), new Vector3(0, -1, 2), new Vector3(-1, 0, 3)};
-
         locations = new List<Vector2> { start };
+        neighbors = new Vector3[]{ new Vector3(1, 0, 0), new Vector3(0, 1, 1), new Vector3(0, -1, 2), new Vector3(-1, 0, 3)}; //represents the direction of each cell and its array pos in this order: right, up, down, left
 
-        cells = new Cell[(int)sizeSlider.value, (int)sizeSlider.value];
-
-        for (int x = 0; x < (int)sizeSlider.value; x++)
-        {
-            for (int y = 0; y < (int)sizeSlider.value; y++)
-            {
-                cells[x, y] = new Cell(false, 4);
-            }
-        }
-
+        //setup cell array
+        InitCell();
         cells[(int)start.x, (int)start.y].maze = true;
         cells[(int)start.x, (int)start.y].directions = new bool[] { false, false, true, false };
 
         //grid
         grid = new List<GameObject>();
+        Camera.main.orthographicSize = ((int)sizeSlider.value / 2) + 2;
+        verticalOffset = (int)Camera.main.orthographicSize;
+        horizontalOffset = verticalOffset * (Screen.width / Screen.height);
 
+        //generate
         GenerateMaze();
         GenerateGrid((int)sizeSlider.value, (int)sizeSlider.value);
     }
     public void Restart()
     {
-        //setup first cell
+        //restart locations
         start = new Vector2(UnityEngine.Random.Range(0, (int)sizeSlider.value), 0);
         locations.Clear();
         locations.Add(start);
         foundEnd = false;
 
-        cells = new Cell[(int)sizeSlider.value, (int)sizeSlider.value];
+        //setup cell array
+        InitCell();
+        cells[(int)start.x, (int)start.y].maze = true;
+        cells[(int)start.x, (int)start.y].directions = new bool[] { false, false, true, false };
 
+        //grid offset based on camera size
+        Camera.main.orthographicSize = ((int)sizeSlider.value / 2) + 2;
+        verticalOffset = (int)Camera.main.orthographicSize;
+        horizontalOffset = verticalOffset * (Screen.width / Screen.height);
+    }
+    void InitCell()
+    {
+        //creates a new cell array and initializes each cell
+        cells = new Cell[(int)sizeSlider.value, (int)sizeSlider.value];
         for (int x = 0; x < (int)sizeSlider.value; x++)
         {
             for (int y = 0; y < (int)sizeSlider.value; y++)
@@ -146,27 +159,25 @@ public class SimpleMaze : MonoBehaviour
                 cells[x, y] = new Cell(false, 4);
             }
         }
-
-        cells[(int)start.x, (int)start.y].maze = true;
-        cells[(int)start.x, (int)start.y].directions = new bool[] { false, false, true, false };
-
-        ClearGrid();
     }
     #endregion
 
     #region UI
     public void RandomizeButton()
     {
+        //randomize a new maze
         Restart();
         GenerateMaze();
         GenerateGrid((int)sizeSlider.value, (int)sizeSlider.value);
     }
     public void StepButton()
     {
+        //step by step maze generation
         GenerateMazeStep();
     }
     public void OnSizeChanged()
     {
+        //size slider restarts maze and generates a new one
         Restart();
         GenerateMaze();
         GenerateGrid((int)sizeSlider.value, (int)sizeSlider.value);
@@ -206,6 +217,7 @@ public class SimpleMaze : MonoBehaviour
     //finds a random end cell and sets the direction so its an exit
     bool FindEnd(int top)
     {
+        //determines which correct border direction should be toggled off based on current position at an edge
         if ((int)locations[top].x == 0)
         {
             cells[(int)locations[top].x, (int)locations[top].y].directions[3] = true;
@@ -256,15 +268,20 @@ public class SimpleMaze : MonoBehaviour
         }
         else
         {
+            //if all neighbors have been checked and no more steps available, restart with a new maze
             Restart();
             GenerateMazeStep();
         }
 
         //refresh grid
+        Camera.main.orthographicSize = ((int)sizeSlider.value / 2) + 2;
+        verticalOffset = (int)Camera.main.orthographicSize;
+        horizontalOffset = verticalOffset * (Screen.width / Screen.height);
         GenerateGrid((int)sizeSlider.value, (int)sizeSlider.value);
     }
     bool canPlace(int x, int y, int dir)
     {
+        //checks if in bounds of cell array, a non-maze cell, and the direction matches up
         return (0 <= x && x < (int)sizeSlider.value &&
             0 <= y && y < (int)sizeSlider.value &&
             cells[x, y].maze == false && 
@@ -273,18 +290,20 @@ public class SimpleMaze : MonoBehaviour
     //return a random and valid neighboring cell from a given location
     Vector2 makeConnection(Vector2 location)
     {
-        //Debug.Log("started shuffle!");
+        //randomize which neighbors to check first
         neighbors = ShuffleNeighbors();
-        //Debug.Log("ended shuffle!");
 
+        //run through new list and check if any is a valid non-maze cell
         for (int i = 0; i < neighbors.Length; i++)
         {
             int x = (int)location.x + (int)neighbors[i].x;
             int y = (int)location.y + (int)neighbors[i].y;
             int fromDir = 3 - (int)neighbors[i].z;
 
+            //check for bounds and direction
             if (canPlace(x, y, fromDir))
             {
+                //create a maze cell in valid neighbor tile and return
                 cells[x, y].directions[fromDir] = true;
                 cells[(int)location.x, (int)location.y].directions[(int)neighbors[i].z] = true;
                 cells[x, y].maze = true;
@@ -292,6 +311,7 @@ public class SimpleMaze : MonoBehaviour
             }
         }
 
+        //if no valid neighbors nearby, return zero and wait to be removed from list
         Debug.Log("Returned NULL for makeConnection()");
         return Vector2.zero;
     }
@@ -314,16 +334,11 @@ public class SimpleMaze : MonoBehaviour
     #endregion
 
     #region Grid Generation
-    //draw grid with cell data
     public void GenerateGrid(int rows, int cols)
     {
         ClearGrid();
 
-        //grid offset based on camera size
-        Camera.main.orthographicSize = (rows / 2) + 2;
-        verticalOffset = (int)Camera.main.orthographicSize;
-        horizontalOffset = verticalOffset * (Screen.width / Screen.height);
-
+        //draw grid with cell data
         for (int x = 0; x < rows; x++)
         {
             for (int y = 0; y < cols; y++)
@@ -337,11 +352,10 @@ public class SimpleMaze : MonoBehaviour
                     DrawGrid(normalColor, x, y);
             }
         }
-
-
     }
     private void ClearGrid()
     {
+        //destroys each gameobject in grid and clears list of nulls
         for (int i = 0; i < grid.Count; i++)
             Destroy(grid[i]);
 
@@ -349,14 +363,17 @@ public class SimpleMaze : MonoBehaviour
     }
     public void DrawGrid(Color col, int x, int y)
     {
+        //setup grid piece
         GameObject go = Instantiate(grid_normal);
-
         go.transform.SetParent(GameObject.Find("Grid").transform);
         go.transform.GetComponent<SpriteRenderer>().color = col;
         go.transform.position = new Vector3(x - horizontalOffset, y - verticalOffset, GRID_LAYER);
 
+        //run through each direction to determine which border to disable
         for (int i = 0; i < cells[x,y].directions.Length; i++)
         {
+            //every iteration of i is checking on a different direction in the game object: right up down left
+            //if the direction is marked true, then the border is disabled, visually connecting the cell to the other one
             if (cells[x, y].directions[i])
             {
                 go.transform.GetChild(i).transform.position = new Vector3(x - horizontalOffset, y - verticalOffset, GRID_LAYER);
