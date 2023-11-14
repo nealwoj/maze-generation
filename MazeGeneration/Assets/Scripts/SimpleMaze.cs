@@ -3,13 +3,14 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using UnityEngine.UI;
 
-public struct Connection
+public struct Cell
 {
     public bool maze;
     public bool[] directions;
 
-    public Connection(bool inMaze, int size)
+    public Cell(bool inMaze, int size)
     {
         maze = inMaze;
         directions = new bool[size];
@@ -27,15 +28,19 @@ public class SimpleMaze : MonoBehaviour
 
     /*  public variables    */
     public List<Vector2> locations; //maze locations
-    public Connection[,] cells;
+    public Cell[,] cells; //grid cells that are set as maze/normal
     public Vector2 start, end; //starting/ending location for the maze
     public List<GameObject> grid; //represents grid game objects
     [HideInInspector]
     public Vector3[] neighbors; //each array entry represents a direction for a possible neighboring cell
-    [HideInInspector]
-    public int verticalOffset, horizontalOffset; //offsets for generating grid squares
-    public Color normalColor, startColor, mazeColor;
-    public bool foundEnd;
+    //[HideInInspector]
+    public float verticalOffset, horizontalOffset; //offsets for generating grid squares
+    public Color normalColor, startColor, mazeColor, highlightColor; //colors set in editor for maze
+    public bool foundEnd; //found an end tile?
+    public GameObject mouseCircle; //debug tool
+
+    /*   UI   */
+    public Slider sizeSlider;
 
     /*   prefabs   */
     public GameObject grid_normal, grid_maze;
@@ -55,13 +60,49 @@ public class SimpleMaze : MonoBehaviour
 
     void Update()
     {
-        
+        if (Input.GetKeyDown(KeyCode.Space) || Input.GetMouseButtonDown(1))
+        {
+            GenerateGrid((int)sizeSlider.value, (int)sizeSlider.value);
+        }
+
+        Vector3 mouse = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+        mouseCircle.transform.position = new Vector3(mouse.x, mouse.y, 0);
+
+        Vector3 pos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+        Camera.main.orthographicSize = ((int)sizeSlider.value / 2) + 2;
+        verticalOffset = Camera.main.orthographicSize;
+        horizontalOffset = verticalOffset * (Screen.width / Screen.height);
+
+        int x = (int)pos.x + (int)(horizontalOffset);
+        int y = (int)pos.y + (int)(verticalOffset);
+
+        //mouse click is in board bounds
+        if (x >= 0 && x < (int)(sizeSlider.value) && y >= 0 && y < (int)(sizeSlider.value))
+            DrawCell(x, y);
     }
 
+    void DrawCell(int x, int y)
+    {
+        for (int i = 0; i < grid.Count; i++)
+        {
+            int dx = (int)(grid[i].transform.position.x) + (int)(horizontalOffset);
+            int dy = (int)(grid[i].transform.position.y) + (int)(verticalOffset);
+
+            if (x == dx && y == dy &&
+                grid[i].GetComponent<SpriteRenderer>().color != highlightColor &&
+                grid[i].GetComponent<SpriteRenderer>().color != startColor)
+            {
+                Debug.Log(("DREW CELL AT GRID INT: (" + x +  ", " + y + ")"));
+                grid[i].transform.GetComponent<SpriteRenderer>().color = highlightColor;
+            }
+        }
+    }
+
+    #region INIT
     public void Init()
     {
         //setup first cell
-        start = new Vector2(UnityEngine.Random.Range(0, WIDTH), 0);
+        start = new Vector2(UnityEngine.Random.Range(0, (int)sizeSlider.value), 0);
         foundEnd = false;
 
         //represents the direction of each cell and its array pos in this order: right, up, down, left
@@ -69,13 +110,13 @@ public class SimpleMaze : MonoBehaviour
 
         locations = new List<Vector2> { start };
 
-        cells = new Connection[WIDTH, HEIGHT];
+        cells = new Cell[(int)sizeSlider.value, (int)sizeSlider.value];
 
-        for(int x = 0; x < WIDTH; x++)
+        for (int x = 0; x < (int)sizeSlider.value; x++)
         {
-            for (int y = 0; y < HEIGHT; y++)
+            for (int y = 0; y < (int)sizeSlider.value; y++)
             {
-                cells[x, y] = new Connection(false, 4);
+                cells[x, y] = new Cell(false, 4);
             }
         }
 
@@ -84,28 +125,25 @@ public class SimpleMaze : MonoBehaviour
 
         //grid
         grid = new List<GameObject>();
-        verticalOffset = (int)Camera.main.orthographicSize;
-        horizontalOffset = verticalOffset * (Screen.width / Screen.height);
 
         GenerateMaze();
-        GenerateGrid();
+        GenerateGrid((int)sizeSlider.value, (int)sizeSlider.value);
     }
-
     public void Restart()
     {
         //setup first cell
-        start = new Vector2(UnityEngine.Random.Range(0, WIDTH), 0);
+        start = new Vector2(UnityEngine.Random.Range(0, (int)sizeSlider.value), 0);
         locations.Clear();
         locations.Add(start);
         foundEnd = false;
 
-        cells = new Connection[WIDTH, HEIGHT];
+        cells = new Cell[(int)sizeSlider.value, (int)sizeSlider.value];
 
-        for (int x = 0; x < WIDTH; x++)
+        for (int x = 0; x < (int)sizeSlider.value; x++)
         {
-            for (int y = 0; y < HEIGHT; y++)
+            for (int y = 0; y < (int)sizeSlider.value; y++)
             {
-                cells[x, y] = new Connection(false, 4);
+                cells[x, y] = new Cell(false, 4);
             }
         }
 
@@ -114,18 +152,28 @@ public class SimpleMaze : MonoBehaviour
 
         ClearGrid();
     }
+    #endregion
 
+    #region UI
     public void RandomizeButton()
     {
         Restart();
         GenerateMaze();
-        GenerateGrid();
+        GenerateGrid((int)sizeSlider.value, (int)sizeSlider.value);
     }
     public void StepButton()
     {
         GenerateMazeStep();
     }
+    public void OnSizeChanged()
+    {
+        Restart();
+        GenerateMaze();
+        GenerateGrid((int)sizeSlider.value, (int)sizeSlider.value);
+    }
+    #endregion
 
+    #region Maze Generation
     void GenerateMaze()
     {
         while (locations.Count > 0)
@@ -164,7 +212,7 @@ public class SimpleMaze : MonoBehaviour
             end = locations[top];
             return true;
         }
-        else if ((int)locations[top].x == WIDTH - 1)
+        else if ((int)locations[top].x == (int)sizeSlider.value - 1)
         {
             cells[(int)locations[top].x, (int)locations[top].y].directions[0] = true;
             end = locations[top];
@@ -176,7 +224,7 @@ public class SimpleMaze : MonoBehaviour
             end = locations[top];
             return true;
         }
-        else if ((int)locations[top].y == HEIGHT - 1)
+        else if ((int)locations[top].y == (int)sizeSlider.value - 1)
         {
             cells[(int)locations[top].x, (int)locations[top].y].directions[1] = true;
             end = locations[top];
@@ -213,12 +261,12 @@ public class SimpleMaze : MonoBehaviour
         }
 
         //refresh grid
-        GenerateGrid();
+        GenerateGrid((int)sizeSlider.value, (int)sizeSlider.value);
     }
     bool canPlace(int x, int y, int dir)
     {
-        return (0 <= x && x < WIDTH &&
-            0 <= y && y < HEIGHT &&
+        return (0 <= x && x < (int)sizeSlider.value &&
+            0 <= y && y < (int)sizeSlider.value &&
             cells[x, y].maze == false && 
             cells[x, y].directions[dir] == false);
     }
@@ -263,19 +311,27 @@ public class SimpleMaze : MonoBehaviour
         }
         return newNeighbors;
     }
+    #endregion
 
+    #region Grid Generation
     //draw grid with cell data
-    public void GenerateGrid()
+    public void GenerateGrid(int rows, int cols)
     {
         ClearGrid();
 
-        for (int x = 0; x < WIDTH; x++)
+        //grid offset based on camera size
+        Camera.main.orthographicSize = (rows / 2) + 2;
+        verticalOffset = (int)Camera.main.orthographicSize;
+        horizontalOffset = verticalOffset * (Screen.width / Screen.height);
+
+        for (int x = 0; x < rows; x++)
         {
-            for (int y = 0; y < HEIGHT; y++)
+            for (int y = 0; y < cols; y++)
             {
-                //if (x == (int)end.x && y == (int)end.y)
-                    //DrawGrid(startColor, x, y);
-                if (cells[x, y].maze)
+                if ((x == (int)end.x && y == (int)end.y) ||
+                    (x == (int)start.x && y == (int)start.y))
+                    DrawGrid(startColor, x, y);
+                else if (cells[x, y].maze)
                     DrawGrid(mazeColor, x, y);
                 else
                     DrawGrid(normalColor, x, y);
@@ -310,4 +366,5 @@ public class SimpleMaze : MonoBehaviour
 
         grid.Add(go);
     }
+    #endregion
 }
