@@ -217,26 +217,26 @@ public class SimpleMaze : MonoBehaviour
     //finds a random end cell and sets the direction so its an exit
     bool FindEnd(int top)
     {
-        //determines which correct border direction should be toggled off based on current position at an edge
-        if ((int)locations[top].x == 0)
+        //determines which correct border direction should be toggled off based on current position at an edge, if x == 0 we need to toggle a certain border direction
+        if ((int)locations[top].x == 0 && (int)locations[top].x != (int)start.x && (int)locations[top].y != (int)start.y)
         {
             cells[(int)locations[top].x, (int)locations[top].y].directions[3] = true;
             end = locations[top];
             return true;
         }
-        else if ((int)locations[top].x == (int)sizeSlider.value - 1)
+        else if ((int)locations[top].x == (int)sizeSlider.value - 1 && (int)locations[top].x != (int)start.x && (int)locations[top].y != (int)start.y)
         {
             cells[(int)locations[top].x, (int)locations[top].y].directions[0] = true;
             end = locations[top];
             return true;
         }
-        else if ((int)locations[top].y == 0)
+        else if ((int)locations[top].y == 0 && (int)locations[top].x != (int)start.x && (int)locations[top].y != (int)start.y)
         {
             cells[(int)locations[top].x, (int)locations[top].y].directions[2] = true;
             end = locations[top];
             return true;
         }
-        else if ((int)locations[top].y == (int)sizeSlider.value - 1)
+        else if ((int)locations[top].y == (int)sizeSlider.value - 1 && (int)locations[top].x != (int)start.x && (int)locations[top].y != (int)start.y)
         {
             cells[(int)locations[top].x, (int)locations[top].y].directions[1] = true;
             end = locations[top];
@@ -312,7 +312,6 @@ public class SimpleMaze : MonoBehaviour
         }
 
         //if no valid neighbors nearby, return zero and wait to be removed from list
-        Debug.Log("Returned NULL for makeConnection()");
         return Vector2.zero;
     }
     Vector3[] ShuffleNeighbors()
